@@ -42,7 +42,7 @@ def scrape_brand(
     init_db(conn)
 
     brand_url = f"{BASE_URL}/rund-ums-fahrzeug/autokatalog/marken-modelle/{brand_slug}/"
-    log.info("Descargando marca: %s", brand_url)
+    log.info("Downloading brand: %s", brand_url)
 
     try:
         html = fetcher.get(brand_url)
@@ -51,76 +51,76 @@ def scrape_brand(
         return
 
     if html is None:
-        log.error("No se pudo descargar la página de marca. Abortando.")
+        log.error("Could not download the brand page. Aborting.")
         return
 
     brand_id = upsert_brand(conn, brand_slug.upper(), brand_url)
     models = parse_brand_page(html, BASE_URL)
-    log.info("Encontrados %d modelos para %s", len(models), brand_slug)
+    log.info("Found %d models for %s", len(models), brand_slug)
 
     if limit:
         models = models[:limit]
-        log.info("Modo demo: limitando a %d modelos", limit)
+        log.info("Demo mode: limiting to %d models", limit)
 
     for model in models:
-        log.info("  Modelo: %s -> %s", model["name"], model["url"])
+        log.info("  Model: %s -> %s", model["name"], model["url"])
         model_id = upsert_model(conn, brand_id, model["name"], model["url"])
 
         try:
             model_html = fetcher.get(model["url"])
         except RobotsBlocked as e:
-            log.warning("  Saltando modelo (robots.txt): %s", e)
+            log.warning("  Skipping model (robots.txt): %s", e)
             continue
 
         if model_html is None:
-            log.warning("  No se pudo descargar %s, se sigue con el próximo", model["url"])
+            log.warning("  Could not download %s, continuing with next", model["url"])
             continue
 
         generations = parse_model_page(model_html, BASE_URL)
-        log.info("  %d generaciones encontradas", len(generations))
+        log.info("  %d generations found", len(generations))
 
         for gen in generations:
             gen_id = upsert_generation(
                 conn, model_id, gen["name"], gen["year_from"], gen["year_to"], gen["url"]
             )
-            log.info("    Generación: %s (%s-%s)", gen["name"], gen["year_from"], gen["year_to"])
+            log.info("    Generation: %s (%s-%s)", gen["name"], gen["year_from"], gen["year_to"])
 
             try:
                 gen_html = fetcher.get(gen["url"])
             except RobotsBlocked as e:
-                log.warning("    Saltando generación (robots.txt): %s", e)
+                log.warning("    Skipping generation (robots.txt): %s", e)
                 continue
 
             if gen_html is None:
-                log.warning("    No se pudo descargar %s, se sigue con la próxima", gen["url"])
+                log.warning("    Could not download %s, continuing with next", gen["url"])
                 continue
 
             variant_links = parse_generation_page(gen_html, BASE_URL)
-            log.info("    %d variantes encontradas", len(variant_links))
+            log.info("    %d variants found", len(variant_links))
 
             if variant_limit:
                 variant_links = variant_links[:variant_limit]
-                log.info("    Modo demo: limitando a %d variantes", variant_limit)
+                log.info("    Demo mode: limiting to %d variants", variant_limit)
 
             for vlink in variant_links:
                 try:
                     variant_html = fetcher.get(vlink["url"])
                 except RobotsBlocked as e:
-                    log.warning("      Saltando variante (robots.txt): %s", e)
+                    log.warning("      Skipping variant (robots.txt): %s", e)
                     continue
 
                 if variant_html is None:
-                    log.warning("      No se pudo descargar %s", vlink["url"])
+                    log.warning("      Could not download %s", vlink["url"])
                     continue
 
                 specs = parse_variant_specs(variant_html)
                 propulsion = detect_propulsion_type(specs)
                 variant_id = upsert_variant(conn, gen_id, vlink["name"], propulsion, vlink["url"])
                 insert_specs(conn, variant_id, specs)
-                log.info("      Variante: %s [%s] (%d campos)", vlink["name"], propulsion, len(specs))
+                log.info("      Variant: %s [%s] (%d fields)", vlink["name"], propulsion, len(specs))
 
     conn.close()
-    log.info("Listo. Datos guardados en %s", db_path)
+    log.info("Done. Data saved to %s", db_path)
 
 
 if __name__ == "__main__":

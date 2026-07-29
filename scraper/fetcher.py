@@ -45,9 +45,9 @@ class Fetcher:
             self.robots.set_url(urljoin(base_url, "/robots.txt"))
             try:
                 self.robots.read()
-                log.info("robots.txt cargado desde %s", urljoin(base_url, "/robots.txt"))
+                log.info("robots.txt loaded from %s", urljoin(base_url, "/robots.txt"))
             except Exception as e:
-                log.warning("No se pudo leer robots.txt (%s) -- se continúa con precaución", e)
+                log.warning("Could not read robots.txt (%s) -- proceeding with caution", e)
                 self.robots = None
 
     def _allowed(self, url: str) -> bool:
@@ -67,17 +67,17 @@ class Fetcher:
                     return resp.text
                 elif resp.status_code == 429:
                     wait = 2 ** attempt * 5
-                    log.warning("429 (rate limited) en %s -- esperando %ss", url, wait)
+                    log.warning("429 (rate limited) on %s -- waiting %ss", url, wait)
                     time.sleep(wait)
                 elif resp.status_code == 403:
-                    log.error("403 en %s -- posible bloqueo anti-bot. Abortando esta URL.", url)
+                    log.error("403 on %s -- possible anti-bot block. Aborting this URL.", url)
                     return None
                 else:
-                    log.warning("Status %s en %s (intento %s/%s)", resp.status_code, url, attempt, MAX_RETRIES)
+                    log.warning("Status %s on %s (attempt %s/%s)", resp.status_code, url, attempt, MAX_RETRIES)
                     time.sleep(2 ** attempt)
             except requests.RequestException as e:
-                log.warning("Error de red en %s: %s (intento %s/%s)", url, e, attempt, MAX_RETRIES)
+                log.warning("Network error on %s: %s (attempt %s/%s)", url, e, attempt, MAX_RETRIES)
                 time.sleep(2 ** attempt)
 
-        log.error("Falló definitivamente: %s", url)
+        log.error("Failed permanently: %s", url)
         return None
